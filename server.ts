@@ -4,7 +4,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import {randomUUID, timingSafeEqual} from 'node:crypto';
-import { fork } from 'node:child_process';
 import type {AgentName, AgentState, Bootstrap, Message, ServerHealth, Session} from './src/lib/types';
 import {OpenCodeBridge} from './src/lib/opencodeBridge';
 
@@ -126,21 +125,8 @@ app.post('/api/messages',async(req,res)=>{
   res.status(answer?200:503).json(answer?{user,response:responseMessage,provider:answer.provider}:{error:'Nie uzyskano odpowiedzi modelu. Wiadomość zapisana lokalnie.',details:error,user});
 });
 // Authenticated real worker callbacks. Profiles alone NEVER imply an online agent.
-const DEFAULT_WORKER_TOKENS: Record<string, string> = {
-  Alex: 'token-alex-svl-system-worker-secret-32-chars-ok',
-  Aria: 'token-aria-svl-system-worker-secret-32-chars-ok',
-  Astyria: 'token-astyria-svl-system-worker-secret-32-chars-ok',
-  Aurelius: 'token-aurelius-svl-system-worker-secret-32-chars-ok',
-};
-let tokens: Record<string, string> = {};
-try {
-  const parsed = JSON.parse(process.env.SVL_WORKER_TOKENS || '');
-  if (typeof parsed === 'object' && parsed) tokens = parsed;
-  else tokens = DEFAULT_WORKER_TOKENS;
-} catch {
-  tokens = DEFAULT_WORKER_TOKENS;
-}
-const tokensValid = AGENTS.every(a => typeof tokens[a] === 'string' && tokens[a].length >= 32) && new Set(AGENTS.map(a => tokens[a])).size === 4;
+let tokens:Record<string,string>={};try{tokens=JSON.parse(process.env.SVL_WORKER_TOKENS||'{}')}catch{}
+const tokensValid=AGENTS.every(a=>typeof tokens[a]==='string'&&tokens[a].length>=32)&&new Set(AGENTS.map(a=>tokens[a])).size===4;
 function workerAuth(req:express.Request,res:express.Response,next:express.NextFunction){
   if(!tokensValid)return sendError(res,'Nie skonfigurowano czterech unikalnych tokenów agentów.',503);
   const provided=(req.header('authorization')||'').replace(/^Bearer /i,'');const entry=AGENTS.find(a=>{const t=tokens[a];return Buffer.byteLength(t)===Buffer.byteLength(provided)&&timingSafeEqual(Buffer.from(t),Buffer.from(provided))});
@@ -175,8 +161,7 @@ app.post('/api/auth/login',(req,res)=>{
 // Real host observer telemetry, pushed by an authenticated daemon. Never infer 'host' from a container.
 type HostSnapshot={hostname:string;os:string;kernel?:string;scope:string;uid?:number;observedAt:string;memoryPercent:number;diskPercent?:number;processCount?:number;services:{name:string;state:string}[];ollama?:{reachable:boolean;models:string[]}};
 let hostData:HostSnapshot|null=null;let hostReceivedAt=0;
-const DEFAULT_LINUX_SECRET = 'token-linux-sync-agent-secret-key-32-chars-ok';
-const linuxSecret=(process.env.SVL_LINUX_SYNC_TOKEN||DEFAULT_LINUX_SECRET).trim();
+const linuxSecret=(process.env.SVL_LINUX_SYNC_TOKEN||'').trim();
 app.post('/api/linux/ingest',(req,res)=>{
   const provided=(req.header('authorization')||'').replace(/^Bearer /i,'');
   if(linuxSecret.length<32||!secureEqual(provided,linuxSecret))return sendError(res,'Brak autoryzacji obserwatora Linux.',401);
@@ -189,29 +174,10 @@ app.get('/api/linux/status',(_req,res)=>{
   const connected=hostData!==null&&Date.now()-hostReceivedAt<45000;
   res.json({connected,receivedAt:connected?new Date(hostReceivedAt).toISOString():null,host:connected?hostData:null,note:connected?'Rzeczywisty odczyt z uwierzytelnionego obserwatora Linux':'Brak świeżego odczytu hosta. GUI nie oznacza usług jako ONLINE bez pomiarów.'});
 });
-app.get('/api/ai/status',async(_req,res)=>{
-  const h=await health();
-  res.json({provider:'OpenCode / Ollama',model:h.ollama.model,enabled:true,connection:h.ollama.reachable?'CONNECTED':'DISCONNECTED',sysVersion:'9.0.0-BastillaOS'});
-});
-app.use('/api/*',(_req,res)=>{
-  res.status(404).json({error:'Endpoint API nie istnieje.'});
-});
 const PORT=Number(process.env.PORT)||3000;
 if(process.env.NODE_ENV==='production'){
   const dist=path.resolve('dist');app.use(express.static(dist));app.get('*',(_req,res)=>res.sendFile(path.join(dist,'index.html')));
 }else{
   const {createServer}=await import('vite');const vite=await createServer({server:{middlewareMode:true},appType:'spa'});app.use(vite.middlewares);
 }
-app.listen(PORT,'0.0.0.0',()=>{
-  console.log('Bastilla OS GUI First listening on '+PORT);
-  if(tokensValid){
-    for(const agent of AGENTS){
-      const child=fork('./scripts/worker.mjs',[agent,tokens[agent]],{env:{...process.env,PORT:String(PORT)}});
-      child.unref();
-    }
-  }
-  if(linuxSecret.length>=32){
-    const observer=fork('./scripts/linux-observer.mjs',[linuxSecret],{env:{...process.env,PORT:String(PORT)}});
-    observer.unref();
-  }
-});
+app.listen(PORT,'0.0.0.0',()=>console.log('Bastilla OS GUI First listening on '+PORT));

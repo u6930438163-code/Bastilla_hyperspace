@@ -2,14 +2,8 @@ import type { AgentName, Bootstrap, Message, ServerHealth, Session } from './typ
 export class ApiFailure extends Error { constructor(message:string, public code:number){super(message);} }
 async function request<T>(url:string, init?:RequestInit):Promise<T>{
   const response=await fetch(url,{cache:'no-store',...init,headers:{...((init?.body)?{'Content-Type':'application/json'}:{}),...(init?.headers||{})}});
-  let result;
-  const text = await response.text();
-  try {
-    result = JSON.parse(text);
-  } catch (e) {
-    throw new ApiFailure(`Nieprawidłowy JSON z ${url}: ${text.substring(0, 100)}`, response.status);
-  }
-  if(!response.ok) throw new ApiFailure(result.error||`HTTP ${response.status}`, response.status);
+  const result=await response.json().catch(()=>({error:'Odpowiedź serwera nie jest prawidłowym JSON.'}));
+  if(!response.ok) throw new ApiFailure(result.error||`HTTP ${response.status}`,response.status);
   return result as T;
 }
 export const api={

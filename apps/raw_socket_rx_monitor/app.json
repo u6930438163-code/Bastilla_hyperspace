@@ -2,7 +2,7 @@
   "id": "raw_socket_rx_monitor",
   "name": "Raw Socket RX Monitor v8.5.1 — Direct Port Listener (Port 3200/TCP)",
   "type": "python-microservice",
-  "version": "9.0.0-Triada-BestOS-Mission",
+  "version": "8.5.1-Desktop-Ready",
   "author": "Mateusz Mitek (Tata) & Astyria, Alex, Aurelius",
   "description": "Zbudowany od nowa moduł rzeczywistego nasłuchu gniazd sieciowych (Port 3200/TCP) sprzężony z Data Store i Snapshot API. Całkowicie zastępuje usunięty moduł heurystyczny oraz dawny Binary Hyperspace Kernel.",
   "entry": "index.html",
