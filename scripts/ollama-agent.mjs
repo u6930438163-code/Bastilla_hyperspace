@@ -8,11 +8,11 @@ export function ollamaOrigin(value=process.env.OLLAMA_BASE_URL||'http://127.0.0.
 export function chooseModel(names,model='auto'){
  if(!names.length)throw Error('Brak modelu w Ollama. Użyj ollama pull MODEL na hoście.');
  if(model!=='auto'){
-  const found=names.find(n=>n===model)||names.find(n=>n.split(':')[0]===model);
+  const found=names.find(n=>n===model)||names.find(n=>n.startsWith(model+':'));
   if(!found)throw Error('Model '+model+' niedostępny. Zainstalowane: '+names.join(', '));
   return found;
  }
- return names.find(n=>/llama3\.2-vision|vision.*11b|llama3\.2:11b/i.test(n))||names[0];
+ return names.find(n=>/llama3\.2[-:]vision|vision.*11b|llama3\.2:11b/i.test(n))||names[0];
 }
 function headers(){return {'Content-Type':'application/json',...(process.env.OLLAMA_API_KEY?{Authorization:'Bearer '+process.env.OLLAMA_API_KEY}:{})};}
 export async function probeOllama(){
