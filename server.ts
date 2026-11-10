@@ -20,7 +20,7 @@ const ollamaApiKey=(process.env.OLLAMA_API_KEY||'').trim();
 const ollamaHeaders=()=>({...ollamaApiKey?{Authorization:'Bearer '+ollamaApiKey}:{}});
 function preferredOllamaModel(models:string[]):string|null{
  if(configuredModel!=='auto')return models.find(m=>m===configuredModel||m.startsWith(configuredModel+':'))||null;
- return models.find(m=>/llama3\\.2-vision|vision.*11b|llama3\\.2:11b/i.test(m))||models[0]||null;
+ return models.find(m=>/llama3\.2[-:]vision|vision.*11b|llama3\.2:11b/i.test(m))||models[0]||null;
 }
 const configuredModel=(process.env.OLLAMA_MODEL||'auto').trim();
 const geminiKey=(process.env.GEMINI_API_KEY||'').trim();
