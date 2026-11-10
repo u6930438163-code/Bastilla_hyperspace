@@ -27,7 +27,7 @@ export async function probeOllama(){
 export async function answerAgent(agent,question){
  if(typeof question!=='string'||!question.trim())throw Error('Puste zadanie');
  const {url,model}=await probeOllama();
- const response=await fetch(url+'/api/chat',{method:'POST',headers:headers(),signal:AbortSignal.timeout(150000),body:JSON.stringify({model,stream:false,messages:[
+ const response=await fetch(url+'/api/chat',{method:'POST',headers:headers(),signal:AbortSignal.timeout(180000),body:JSON.stringify({model,stream:false,messages:[
   {role:'system',content:'Jesteś agentem '+agent+' Bastilla OS. Odpowiadaj po polsku. Ten kanał nie wykonuje komend ani nie posiada narzędzi do modyfikacji hosta. Nie twierdź, że wykonałeś operacje root, zmieniłeś pliki lub przetestowałeś aplikację bez faktycznych wyników narzędzi. Odróżniaj zalecenia od działań wykonanych.'},
   {role:'user',content:question}
  ]})});
