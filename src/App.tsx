@@ -18,7 +18,7 @@ function App(){
  catch(e){setSyncState('offline');if(e instanceof ApiFailure&&e.code===401)setNeedsLogin(true);if(!silent)setError(e instanceof Error?e.message:'Backend jest niedostępny');}},[]);
  const refreshHost=useCallback(async()=>{try{const status=await api.linuxStatus();setHostSnapshot(status);setHostError('');}catch(e){setHostSnapshot(null);setHostError(e instanceof Error?e.message:'Brak danych hosta');}},[]);
  useEffect(()=>{void refresh();void refreshHost();let source:EventSource|null=null;let retryTimer:number|undefined;
-   const connect=()=>{source?.close();setSyncState('connecting');source=new EventSource('/api/events');source.addEventListener('update',()=>{void refresh(true);void refreshHost();});source.onopen=()=>setSyncState('online');source.onerror=()=>setSyncState('offline');};connect();
+   const connect=()=>{source?.close();setSyncState('connecting');source=new EventSource('/api/events');source.addEventListener('update',()=>{void refresh(true);void refreshHost();});source.onopen=()=>{void refresh(true);};source.onerror=()=>setSyncState('offline');};connect();
    const onFocus=()=>{void refresh(true);void refreshHost();};const onVisibility=()=>{if(document.visibilityState==='visible')onFocus();};
    window.addEventListener('focus',onFocus);document.addEventListener('visibilitychange',onVisibility);
    const interval=window.setInterval(()=>{if(Date.now()-lastUpdated.current>22000)void refresh(true);void refreshHost();},25000);
