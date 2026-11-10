@@ -4,6 +4,9 @@ import {createServer} from 'node:http';
 import {chooseModel,ollamaOrigin,answerAgent} from '../scripts/ollama-agent.mjs';
 test('installed models only',()=>{
  assert.equal(chooseModel(['qwen3:14b','llama3.2-vision:11b']),'llama3.2-vision:11b');
+ assert.equal(chooseModel(['qwen3:14b','llama3.2:vision-11b']),'llama3.2:vision-11b');
+ assert.equal(chooseModel(['llama3.2-vision:11b'],'llama3.2-vision'),'llama3.2-vision:11b');
+ assert.throws(()=>chooseModel(['qwen3:14b'],'llama3.2-vision'),/niedostępny/);
  assert.throws(()=>chooseModel([]),/Brak modelu/);
  assert.throws(()=>ollamaOrigin('http://external.example:11434'),/HTTPS/);
 });
