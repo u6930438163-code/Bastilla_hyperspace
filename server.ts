@@ -202,9 +202,30 @@ if(process.env.NODE_ENV==='production'){
 app.listen(PORT,'0.0.0.0',()=>{
  console.log('Bastilla OS GUI First listening on '+PORT);
  if(process.env.SVL_START_WORKERS!=='false')for(const agent of AGENTS){
-  const child=fork(path.resolve('scripts/worker.mjs'),[],{env:{...process.env,PORT:String(PORT),AGENT_NAME:agent,WORKER_TOKEN:tokens[agent]}});
-  child.on('error',err=>console.error('[WORKER '+agent+'] '+err.message));
-  child.on('exit',code=>console.error('[WORKER '+agent+'] exit '+code));
+  let stopping=false;
+  let failures=0;
+  let startedAt=0;
+  let child:ReturnType<typeof fork>|null=null;
+  let restartTimer:ReturnType<typeof setTimeout>|null=null;
+  const start=()=>{
+   if(stopping)return;
+   startedAt=Date.now();
+   try{
+    child=fork(path.resolve('scripts/worker.mjs'),[],{env:{...process.env,PORT:String(PORT),AGENT_NAME:agent,WORKER_TOKEN:tokens[agent]}});
+    child.on('error',err=>console.error('[WORKER '+agent+'] '+err.message));
+    child.on('exit',(code,signal)=>{
+     console.error('[WORKER '+agent+'] exit '+code+' signal '+signal);
+     if(stopping)return;
+     failures=Date.now()-startedAt>60000?0:failures+1;
+     const delay=Math.min(30000,1000*Math.pow(2,Math.min(failures,5)));
+     restartTimer=setTimeout(start,delay);
+    });
+   }catch(err){console.error('[WORKER '+agent+'] spawn failed',err);restartTimer=setTimeout(start,30000)}
+  };
+  const shutdown=()=>{stopping=true;if(restartTimer)clearTimeout(restartTimer);child?.kill('SIGTERM')};
+  process.once('SIGTERM',shutdown);
+  process.once('SIGINT',shutdown);
+  start();
  }
  if(process.env.SVL_START_CONTAINER_OBSERVER==='true'){
   const obs=fork(path.resolve('scripts/linux-observer.mjs'),[],{env:{...process.env,PORT:String(PORT),SVL_LINUX_SYNC_TOKEN:linuxSecret}});
