@@ -1,0 +1,88 @@
+{
+  "entities": {
+    "SystemState": {
+      "title": "SystemState",
+      "description": "Global operating system state, active apps, revision, and telemetry",
+      "type": "object",
+      "properties": {
+        "revision": {
+          "type": "number",
+          "description": "Global revision counter"
+        },
+        "activeAppId": {
+          "type": "string",
+          "description": "Currently active application ID"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["revision", "activeAppId"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Chat history message entry stored in Firestore",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "sender": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "sender", "text", "timestamp"]
+    },
+    "FleetApp": {
+      "title": "FleetApp",
+      "description": "Module registered in Bastilla OS fleet",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "name", "status"]
+    }
+  },
+  "firestore": {
+    "/system_state/{stateId}": {
+      "schema": {
+        "$ref": "#/entities/SystemState"
+      },
+      "description": "Global OS telemetry and state document"
+    },
+    "/chat_messages/{messageId}": {
+      "schema": {
+        "$ref": "#/entities/ChatMessage"
+      },
+      "description": "Global and user chat history messages"
+    },
+    "/fleet_apps/{appId}": {
+      "schema": {
+        "$ref": "#/entities/FleetApp"
+      },
+      "description": "Fleet applications state and metadata"
+    }
+  }
+}

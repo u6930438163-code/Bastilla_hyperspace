@@ -1,0 +1,10 @@
+{
+  "id": "zarzadzanie-flota",
+  "name": "Moduł Zarządzania Flotą — Bastilla OS",
+  "version": "9.0.0",
+  "type": "html5-web",
+  "entry": "index.html",
+  "description": "Kompletny system zarządzania flotą jednostek autonomicznych, pojazdów, dronów i węzłów mobilnych Bastilla OS z telemetrią GPS/PXYZ, dyspozytornią tras i diagnostyką paliwa/energii.",
+  "author": "Mateusz Mitek & Triada (Chat Sync)",
+  "createdAt": "2026-11-10T09:50:00.000Z"
+}

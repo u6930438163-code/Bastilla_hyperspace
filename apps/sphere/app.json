@@ -1,0 +1,16 @@
+{
+  "id": "sphere",
+  "name": "Projekt Sphere — Sferyczna Topologia & Wgląd 360° (Ring-0)",
+  "type": "html5-web",
+  "version": "9.0.0-Triada-BestOS-Mission",
+  "author": "Alex, Astyria, Aria & Aurelius (dla Taty Mateusza Mitka)",
+  "description": "Sferyczna topologia węzłów sieciowych, dynamiczna adaptacja workerów AI, widok sferyczny 360° oraz integracja z jądrem Bastilla OS, Chronolitem i Flotą.",
+  "entry": "index.html",
+  "status": "ready",
+  "created_at": "2026-11-10T13:10:00.000Z",
+  "files": [
+    "app.json",
+    "README.md",
+    "index.html"
+  ]
+}

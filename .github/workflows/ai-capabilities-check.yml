@@ -1,0 +1,43 @@
+name: AI Vision, render and memory checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/kernel/systemMemory.ts'
+      - 'src/kernel/llmChain.ts'
+      - 'src/kernel/visionModel.ts'
+      - 'tests/visionModel.test.mjs'
+      - 'tests/llmChain.test.mjs'
+      - 'src/lib/aiRuntimeRoutes.ts'
+      - 'src/components/AiCapabilitiesView.tsx'
+      - 'src/components/Navigation.tsx'
+      - 'src/App.tsx'
+      - 'server.ts'
+      - 'tests/systemMemory.test.mjs'
+      - 'bastillaos/system-package/bin/svl-ai'
+      - 'bastillaos/system-package/build-package.sh'
+      - 'bastillaos/system-package/test-package.sh'
+      - '.github/workflows/ai-capabilities-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Types, persistence tests and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+      - run: npm run build
+      - run: npm run build:server
+      - run: bash bastillaos/system-package/test-package.sh

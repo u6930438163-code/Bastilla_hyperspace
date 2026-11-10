@@ -1,0 +1,30 @@
+[
+  {
+    "name": "binary_hyperspace_kernel.py",
+    "hash": "06f7d77c7e8d6749f76ef907009d07b422bd402938954545769bc4b0a8ebc8c0",
+    "target": "Nowy_system/kernel/binary_hyperspace_kernel.py",
+    "deployedAt": "2026-11-10T11:04:37.784Z",
+    "origin": "auto-background"
+  },
+  {
+    "name": "raw_socket_listener.py",
+    "hash": "27f9ebbd8a163860c25de66b9857fe072d9b50f014d3daa3f35e65097782d27e",
+    "target": "Nowy_system/kernel/raw_socket_listener.py",
+    "deployedAt": "2026-11-10T11:04:37.785Z",
+    "origin": "auto-background"
+  },
+  {
+    "name": "theory_validator.py",
+    "hash": "98f923acc4d397aaa437c2d994a94a66984a3a5d27115a696a93b3f9a2b15fb1",
+    "target": "Nowy_system/kernel/theory_validator.py",
+    "deployedAt": "2026-11-10T11:04:37.785Z",
+    "origin": "auto-background"
+  },
+  {
+    "name": "vm_ten_sys.sh",
+    "hash": "e19de910785506a119b1f7cb063ad2545d9c24d689fc53b9e97aaf7f2ca5d413",
+    "target": "Nowy_system/vm_ten_sys.sh",
+    "deployedAt": "2026-11-10T11:04:37.785Z",
+    "origin": "auto-background"
+  }
+]

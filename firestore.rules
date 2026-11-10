@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    match /system_state/{stateId} {
+      allow read: if true;
+      allow write: if isSignedIn() && isValidId(stateId) && incoming().revision is number && incoming().activeAppId is string;
+    }
+
+    match /chat_messages/{messageId} {
+      allow read: if true;
+      allow create: if isValidId(messageId) && incoming().id is string && incoming().sender is string && incoming().text is string && incoming().timestamp is string;
+      allow update: if isSignedIn() && isValidId(messageId) && incoming().id is string && incoming().sender is string && incoming().text is string && incoming().timestamp is string;
+      allow delete: if isSignedIn();
+    }
+
+    match /fleet_apps/{appId} {
+      allow read: if true;
+      allow write: if isSignedIn() && isValidId(appId) && incoming().id is string && incoming().name is string && incoming().status is string;
+    }
+  }
+}
