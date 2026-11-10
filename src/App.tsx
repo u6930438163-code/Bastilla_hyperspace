@@ -28,7 +28,7 @@ function App(){
  const activeSession=snapshot?.sessions.find(s=>s.id===sessionId);
  const messages=useMemo(()=>(snapshot?.messages||[]).filter(m=>m.sessionId===sessionId),[snapshot,sessionId]);
  useEffect(()=>{bottom.current?.scrollIntoView({behavior:'smooth',block:'end'});},[messages.length,sessionId]);
- const submit=async(e?:React.FormEvent)=>{e?.preventDefault();const value=text.trim();if(!value||busy||!sessionId)return;setBusy(true);setError('');setText('');try{await api.sendMessage(sessionId,value,recipient);await refresh(true);}catch(e){setText(value);setError(e instanceof Error?e.message:'Nie udało się wysłać');await refresh(true);}finally{setBusy(false);textbox.current?.focus();}};
+ const submit=async(e?:React.FormEvent)=>{e?.preventDefault();const value=text.trim();if(!value||busy||!sessionId)return;setBusy(true);setError('');setText('');try{await api.sendMessage(sessionId,value,recipient);await refresh(true);}catch(e){if(!(e instanceof ApiFailure&&e.code===503))setText(value);setError(e instanceof Error?e.message:'Nie udało się wysłać');await refresh(true);}finally{setBusy(false);textbox.current?.focus();}};
  const startSession=async()=>{try{const s=await api.createSession();await refresh(true);setSessionId(s.id);setDrawer(false);setPanel('none');setText('');}catch(e){setError(String(e));}};
  const archiveSession=async(s:Session)=>{if(!window.confirm('Archiwizować rozmowę „'+s.title+'”? Historia pozostanie zapisana.'))return;try{await api.archiveSession(s.id);await refresh(true);}catch(e){setError(String(e));}};
  const loadAvatar=async()=>{try{await api.updateAvatar(avatarEdit,avatarValue.trim());await refresh(true);setError('');}catch(e){setError(String(e));}};
