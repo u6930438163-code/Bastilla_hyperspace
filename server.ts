@@ -125,8 +125,8 @@ app.post('/api/messages',async(req,res)=>{
     if(allowOllamaFallback){
       try{answer=await answerWithOllama(content,db.messages.filter(m=>m.sessionId===sessionId));error='';}
       catch(e2){error+='; Ollama: '+redactError(e2)}
-      if(!answer&&allowGeminiFallback){try{answer=await answerWithGemini(content);error='';}catch(e3){error+='; Gemini: '+redactError(e3)}}
     }else{error+='; Fallback Ollama wyłączony (SVL_ALLOW_OLLAMA_FALLBACK=false)'}
+    if(!answer&&allowGeminiFallback){try{answer=await answerWithGemini(content);error='';}catch(e3){error+='; Gemini: '+redactError(e3)}}
   }
   let responseMessage:Message|null=null;
   if(answer){responseMessage={id:randomUUID(),sessionId,role:'assistant',author:'Asystent',content:answer.content,provider:answer.provider,createdAt:new Date().toISOString(),status:'delivered'};db.messages.push(responseMessage);session.updatedAt=responseMessage.createdAt;persist();publish('messages')}
