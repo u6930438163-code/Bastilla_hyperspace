@@ -114,9 +114,11 @@ app.post('/api/messages',async(req,res)=>{
     answer={content:reply.content,provider:'OpenCode · OpenAI (metoda logowania niezweryfikowana)'};
   }catch(e){
     error='OpenCode: '+redactError(e);
-    // Fallback if OpenCode is unreachable
-    try{answer=await answerWithOllama(content,db.messages.filter(m=>m.sessionId===sessionId));error='';}
-    catch(e2){error+='; Ollama: '+redactError(e2)}
+    // Respect the operator's fallback policy; never silently switch providers.
+    if(allowOllamaFallback){
+      try{answer=await answerWithOllama(content,db.messages.filter(m=>m.sessionId===sessionId));error='';}
+      catch(e2){error+='; Ollama: '+redactError(e2)}
+    }else{error+='; Fallback Ollama wyłączony (SVL_ALLOW_OLLAMA_FALLBACK=false)'}
   }
   let responseMessage:Message|null=null;
   if(answer){responseMessage={id:randomUUID(),sessionId,role:'assistant',author:'Asystent',content:answer.content,provider:answer.provider,createdAt:new Date().toISOString(),status:'delivered'};db.messages.push(responseMessage);session.updatedAt=responseMessage.createdAt;persist();publish('messages')}
