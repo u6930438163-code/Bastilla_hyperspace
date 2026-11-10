@@ -16,6 +16,12 @@ const AGENTS:AgentName[]=['Alex','Aria','Astyria','Aurelius'];
 const dataDir=path.resolve(process.env.DATA_DIR||'data');
 const storePath=path.join(dataDir,'bastilla-state.json');
 const modelUrl=(process.env.OLLAMA_BASE_URL||'http://127.0.0.1:11434').replace(/\/$/,'');
+const ollamaApiKey=(process.env.OLLAMA_API_KEY||'').trim();
+const ollamaHeaders=()=>({...ollamaApiKey?{Authorization:'Bearer '+ollamaApiKey}:{}});
+function preferredOllamaModel(models:string[]):string|null{
+ if(configuredModel!=='auto')return models.find(m=>m===configuredModel||m.startsWith(configuredModel+':'))||null;
+ return models.find(m=>/llama3\\.2-vision|vision.*11b|llama3\\.2:11b/i.test(m))||models[0]||null;
+}
 const configuredModel=(process.env.OLLAMA_MODEL||'auto').trim();
 const geminiKey=(process.env.GEMINI_API_KEY||'').trim();
 const geminiModel=(process.env.GEMINI_MODEL||'gemini-2.5-flash').trim();
@@ -49,7 +55,7 @@ function validSession(id:string){return db.sessions.find(s=>s.id===id&&!s.archiv
 function ensureSession(){let session=db.sessions.filter(s=>!s.archived).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))[0];if(!session){const now=new Date().toISOString();session={id:randomUUID(),title:'Nowa rozmowa',createdAt:now,updatedAt:now,archived:false};db.sessions.push(session);persist()}return session}
 async function ollamaStatus():Promise<ServerHealth['ollama']>{
   const ctrl=new AbortController();const timer=setTimeout(()=>ctrl.abort(),1800);
-  try{const response=await fetch(modelUrl+'/api/tags',{signal:ctrl.signal});if(!response.ok)throw Error('HTTP '+response.status);const json=await response.json() as {models?:{name?:string}[]};const models=(json.models||[]).map(m=>m.name||'').filter(Boolean);const model=configuredModel==='auto'?models[0]||null:(models.find(m=>m===configuredModel||m.startsWith(configuredModel+':'))||null);return {reachable:true,model,models,configuredUrl:modelUrl,error:!model?'Brak dostępnego, skonfigurowanego modelu.':null}}catch(e){return {reachable:false,model:null,models:[],configuredUrl:modelUrl,error:e instanceof Error?e.message:'Błąd połączenia'}}finally{clearTimeout(timer)}
+  try{const response=await fetch(modelUrl+'/api/tags',{headers:ollamaHeaders(),signal:ctrl.signal});if(!response.ok)throw Error('HTTP '+response.status);const json=await response.json() as {models?:{name?:string}[]};const models=(json.models||[]).map(m=>m.name||'').filter(Boolean);const model=preferredOllamaModel(models);return {reachable:true,model,models,configuredUrl:modelUrl,error:!model?'Brak dostępnego, skonfigurowanego modelu.':null}}catch(e){return {reachable:false,model:null,models:[],configuredUrl:modelUrl,error:e instanceof Error?e.message:'Błąd połączenia'}}finally{clearTimeout(timer)}
 }
 function agentStatus():AgentState[]{const now=Date.now();return AGENTS.map(name=>{const h=heartbeats.get(name);const connected=Boolean(h&&now-Date.parse(h.lastSeen)<40000);return {name,connected,lastSeen:h?.lastSeen||null,workerId:connected?h!.workerId:null,modelReady:connected&&h!.modelReady,model:connected?h!.model:null,error:connected?h!.error:null}})}
 async function health():Promise<ServerHealth>{const [ollama,opencode]=await Promise.all([ollamaStatus(),openCode.status()]);return {backend:'online',observedAt:new Date().toISOString(),ollama,opencode,geminiConfigured:Boolean(geminiKey),agents:agentStatus(),limitations:['Przeglądarka i AI Studio nie są hostowym Linuxem.','Root i usługi systemd wymagają oddzielnego uwierzytelnionego backendu.','Status agenta ONLINE wyłącznie po jego uwierzytelnionym heartbeat.']}}
@@ -65,7 +71,7 @@ async function answerWithOllama(input:string,history:Message[]):Promise<{content
   const status=await ollamaStatus();if(!status.reachable||!status.model)throw Error(status.error||'Ollama offline');
   const ctrl=new AbortController();const timer=setTimeout(()=>ctrl.abort(),100000);
   try{const turns=history.slice(-18).filter(m=>m.role==='user'||m.role==='assistant').map(m=>({role:m.role,content:m.content}));
-    const response=await fetch(modelUrl+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},signal:ctrl.signal,body:JSON.stringify({model:status.model,stream:false,messages:[{role:'system',content:'Jesteś asystentem Bastilla OS. Odpowiadaj po polsku. Nie wymyślaj wykonanych działań, statusów agentów ani hosta. Możesz zwrócić elementy interaktywne jako blok ```svl-ui z JSON {"components":[{"type":"progress","title":"...","value":20}]} ``` tylko wtedy, gdy poprawiają odpowiedź.'},...turns]})});
+    const response=await fetch(modelUrl+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json',...ollamaHeaders()},signal:ctrl.signal,body:JSON.stringify({model:status.model,stream:false,messages:[{role:'system',content:'Jesteś asystentem Bastilla OS. Odpowiadaj po polsku. Nie wymyślaj wykonanych działań, statusów agentów ani hosta. Możesz zwrócić elementy interaktywne jako blok ```svl-ui z JSON {"components":[{"type":"progress","title":"...","value":20}]} ``` tylko wtedy, gdy poprawiają odpowiedź.'},...turns]})});
     if(!response.ok)throw Error('Ollama HTTP '+response.status);
     const data=await response.json() as {message?:{content?:string}};const content=data.message?.content?.trim();if(!content)throw Error('Ollama zwróciła pustą wiadomość.');return {content,provider:'Ollama · '+status.model};
   }finally{clearTimeout(timer)}
