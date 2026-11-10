@@ -1,91 +1,34 @@
-import fs from 'node:fs';
-import os from 'node:os';
-
-const agent = process.argv[2] || process.env.AGENT_NAME;
-const token = process.argv[3] || process.env.WORKER_TOKEN;
-const appPort = Number(process.env.PORT || 3000);
-
-if (!agent || !token) {
-  console.error('Usage: node scripts/worker.mjs <AgentName> <Token>');
-  process.exit(1);
+import {probeOllama,answerAgent} from './ollama-agent.mjs';
+const agent=process.env.AGENT_NAME,token=process.env.WORKER_TOKEN,port=Number(process.env.PORT||3000);
+if(!['Alex','Aria','Astyria','Aurelius'].includes(agent)||!token||token.length<32)throw Error('Missing configured agent token');
+const base='http://127.0.0.1:'+port+'/api/worker',workerId=agent+'-'+process.pid;
+async function post(route,data){
+ const response=await fetch(base+route,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify(data),signal:AbortSignal.timeout(10000)});
+ if(!response.ok)throw Error(route+' HTTP '+response.status);
+ return response.json();
 }
-
-const baseUrl = `http://127.0.0.1:${appPort}/api/worker`;
-const workerId = `pid-${process.pid}-${agent}`;
-
-console.log(`[WORKER ${agent}] Started with PID=${process.pid}, workerId=${workerId}`);
-
-async function sendHeartbeat() {
-  try {
-    const res = await fetch(`${baseUrl}/heartbeat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ workerId }),
-    });
-    if (!res.ok) {
-      console.warn(`[WORKER ${agent}] Heartbeat HTTP ${res.status}`);
-    }
-  } catch (err) {
-    console.warn(`[WORKER ${agent}] Heartbeat error: ${err.message}`);
+async function heartbeat(){
+ let modelReady=false,model=null,error=null;
+ try{model=(await probeOllama()).model;modelReady=true;}catch(e){error=String(e.message).slice(0,180);}
+ try{await post('/heartbeat',{workerId,modelReady,model,error});}catch(e){console.error('[WORKER '+agent+'] heartbeat: '+e.message);}
+}
+let busy=false;
+async function next(){
+ if(busy)return;busy=true;
+ try{
+  const {job}=await post('/next',{workerId});
+  if(!job)return;
+  try{
+   const result=await answerAgent(agent,job.content);
+   await post('/complete',{workerId,jobId:job.id,content:result.content,provider:'Ollama · '+result.model});
+   console.log('[WORKER '+agent+'] complete '+job.id+' using '+result.model);
+  }catch(e){
+   const error=String(e.message).slice(0,250);
+   console.error('[WORKER '+agent+'] failed '+job.id+': '+error);
+   try{await post('/fail',{workerId,jobId:job.id,error});}catch(e2){console.error('[WORKER '+agent+'] fail callback: '+e2.message);}
   }
+ }catch(e){console.error('[WORKER '+agent+'] polling: '+e.message);}
+ finally{busy=false;}
 }
-
-async function pollTask() {
-  try {
-    const res = await fetch(`${baseUrl}/next`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ workerId }),
-    });
-    if (!res.ok) return;
-    const data = await res.json();
-    if (!data.job) return;
-
-    const job = data.job;
-    console.log(`[WORKER ${agent}] Picked up job ${job.id}: "${job.content}"`);
-
-    // Generate intelligent agent response
-    let responseText = '';
-    const now = new Date().toISOString();
-    if (agent === 'Alex') {
-      responseText = `[Alex · Infrastruktura & Backend]\nPrzeprowadzono analizę zadania: "${job.content}".\n- Weryfikacja konta Linux i PID procesów: OK (PID: ${process.pid})\n- Usługi systemd: Aktywne\n- Uruchomiono i zsynchronizowano zasoby systemowe.`;
-    } else if (agent === 'Astyria') {
-      responseText = `[Astyria · Design & UI System]\nPrzetworzono zgłoszenie interfejsu: "${job.content}".\n- Zaktualizowano stan widoku i strukturę komponentów UI.\n- Responsywność i gesty czatu: Gotowe. Zoptymalizowano renderowanie.`;
-    } else if (agent === 'Aria') {
-      responseText = `[Aria · Generatywna AI & Pamięć]\nPrzeanalizowano kontekst: "${job.content}".\n- Zaktualizowano indeksy pamięci długoterminowej.\n- Weryfikacja łańcucha modeli: Gotowe (${now}).`;
-    } else if (agent === 'Aurelius') {
-      responseText = `[Aurelius · Diagnostyka & Integracja]\nPrzeprowadzono audyt niezawodności dla: "${job.content}".\n- Błędy regresji: 0\n- Testy integracyjne: Zaliczone\n- Bezpieczeństwo i trwałość danych: Zweryfikowane (Ring-0).`;
-    } else {
-      responseText = `[Agent ${agent}]\nZadanie zrealizowane pomyślnie. PID: ${process.pid}.`;
-    }
-
-    const completeRes = await fetch(`${baseUrl}/complete`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        jobId: job.id,
-        workerId,
-        content: responseText,
-      }),
-    });
-    if (completeRes.ok) {
-      console.log(`[WORKER ${agent}] Completed job ${job.id}`);
-    }
-  } catch (err) {
-    console.warn(`[WORKER ${agent}] Task processing error: ${err.message}`);
-  }
-}
-
-// Inicjalizacja pętli
-void sendHeartbeat();
-setInterval(() => void sendHeartbeat(), 12000);
-setInterval(() => void pollTask(), 4000);
+void heartbeat();void next();setInterval(()=>void heartbeat(),12000);setInterval(()=>void next(),4000);
+process.on('disconnect',()=>process.exit(0));
