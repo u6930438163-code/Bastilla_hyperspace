@@ -70,7 +70,7 @@ app.put('/api/avatars',(req,res)=>{const name=String(req.body?.name||'');const v
 function redactError(e:unknown){return String(e instanceof Error?e.message:e).slice(0,280)}
 async function answerWithOllama(input:string,history:Message[]):Promise<{content:string;provider:string}>{
   const status=await ollamaStatus();if(!status.reachable||!status.model)throw Error(status.error||'Ollama offline');
-  const ctrl=new AbortController();const timer=setTimeout(()=>ctrl.abort(),100000);
+  const ctrl=new AbortController();const timer=setTimeout(()=>ctrl.abort(),180000);
   try{const turns=history.slice(-18).filter(m=>m.role==='user'||m.role==='assistant').map(m=>({role:m.role,content:m.content}));
     const response=await fetch(modelUrl+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json',...ollamaHeaders()},signal:ctrl.signal,body:JSON.stringify({model:status.model,stream:false,messages:[{role:'system',content:'Jesteś asystentem Bastilla OS. Odpowiadaj po polsku. Nie wymyślaj wykonanych działań, statusów agentów ani hosta. Możesz zwrócić elementy interaktywne jako blok ```svl-ui z JSON {"components":[{"type":"progress","title":"...","value":20}]} ``` tylko wtedy, gdy poprawiają odpowiedź.'},...turns]})});
     if(!response.ok)throw Error('Ollama HTTP '+response.status);
