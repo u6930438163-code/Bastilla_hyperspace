@@ -3,7 +3,8 @@ import dotenv from 'dotenv';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import {randomUUID, timingSafeEqual} from 'node:crypto';
+import {randomUUID, randomBytes, timingSafeEqual} from 'node:crypto';
+import {fork} from 'node:child_process';
 import type {AgentName, AgentState, Bootstrap, Message, ServerHealth, Session} from './src/lib/types';
 import {OpenCodeBridge} from './src/lib/opencodeBridge';
 
@@ -19,9 +20,9 @@ const configuredModel=(process.env.OLLAMA_MODEL||'auto').trim();
 const geminiKey=(process.env.GEMINI_API_KEY||'').trim();
 const geminiModel=(process.env.GEMINI_MODEL||'gemini-2.5-flash').trim();
 const openCode = new OpenCodeBridge({baseUrl:process.env.OPENCODE_BASE_URL, username:process.env.OPENCODE_SERVER_USERNAME, password:process.env.OPENCODE_SERVER_PASSWORD, allowRemote:process.env.OPENCODE_ALLOW_REMOTE==='true'});
-const allowOllamaFallback=process.env.SVL_ALLOW_OLLAMA_FALLBACK==='true';
-const heartbeats=new Map<AgentName,{lastSeen:string;workerId:string}>();
-interface Job{id:string;sessionId:string;messageId:string;to:AgentName;content:string;status:'queued'|'running'|'done';leaseUntil:number;workerId?:string;attempts:number;}
+const allowOllamaFallback=process.env.SVL_ALLOW_OLLAMA_FALLBACK!=='false';
+const heartbeats=new Map<AgentName,{lastSeen:string;workerId:string;modelReady:boolean;model:string|null;error:string|null}>();
+interface Job{id:string;sessionId:string;messageId:string;to:AgentName;content:string;status:'queued'|'running'|'done'|'failed';leaseUntil:number;workerId?:string;attempts:number;}
 interface Db{sessions:Session[];messages:Message[];avatars:Record<string,string>;jobs:Job[];opencodeSessions:Record<string,string>;revision:number;updatedAt:string}
 fs.mkdirSync(dataDir,{recursive:true});
 function loadDb():Db {try{const raw=JSON.parse(fs.readFileSync(storePath,'utf8'));return {sessions:Array.isArray(raw.sessions)?raw.sessions:[],messages:Array.isArray(raw.messages)?raw.messages:[],avatars:raw.avatars&&typeof raw.avatars==='object'?raw.avatars:{},jobs:Array.isArray(raw.jobs)?raw.jobs:[],opencodeSessions:raw.opencodeSessions&&typeof raw.opencodeSessions==='object'?raw.opencodeSessions:{},revision:Number(raw.revision)||0,updatedAt:String(raw.updatedAt||'')}}catch{return {sessions:[],messages:[],avatars:{},jobs:[],opencodeSessions:{},revision:0,updatedAt:''}}}
@@ -50,7 +51,7 @@ async function ollamaStatus():Promise<ServerHealth['ollama']>{
   const ctrl=new AbortController();const timer=setTimeout(()=>ctrl.abort(),1800);
   try{const response=await fetch(modelUrl+'/api/tags',{signal:ctrl.signal});if(!response.ok)throw Error('HTTP '+response.status);const json=await response.json() as {models?:{name?:string}[]};const models=(json.models||[]).map(m=>m.name||'').filter(Boolean);const model=configuredModel==='auto'?models[0]||null:(models.find(m=>m===configuredModel||m.startsWith(configuredModel+':'))||null);return {reachable:true,model,models,configuredUrl:modelUrl,error:!model?'Brak dostępnego, skonfigurowanego modelu.':null}}catch(e){return {reachable:false,model:null,models:[],configuredUrl:modelUrl,error:e instanceof Error?e.message:'Błąd połączenia'}}finally{clearTimeout(timer)}
 }
-function agentStatus():AgentState[]{const now=Date.now();return AGENTS.map(name=>{const h=heartbeats.get(name);const connected=Boolean(h&&now-Date.parse(h.lastSeen)<40000);return {name,connected,lastSeen:h?.lastSeen||null,workerId:connected?h!.workerId:null}})}
+function agentStatus():AgentState[]{const now=Date.now();return AGENTS.map(name=>{const h=heartbeats.get(name);const connected=Boolean(h&&now-Date.parse(h.lastSeen)<40000);return {name,connected,lastSeen:h?.lastSeen||null,workerId:connected?h!.workerId:null,modelReady:connected&&h!.modelReady,model:connected?h!.model:null,error:connected?h!.error:null}})}
 async function health():Promise<ServerHealth>{const [ollama,opencode]=await Promise.all([ollamaStatus(),openCode.status()]);return {backend:'online',observedAt:new Date().toISOString(),ollama,opencode,geminiConfigured:Boolean(geminiKey),agents:agentStatus(),limitations:['Przeglądarka i AI Studio nie są hostowym Linuxem.','Root i usługi systemd wymagają oddzielnego uwierzytelnionego backendu.','Status agenta ONLINE wyłącznie po jego uwierzytelnionym heartbeat.']}}
 app.get('/api/health',async (_req,res)=>res.json(await health()));
 app.get('/api/opencode/status',async (_req,res)=>{res.set('Cache-Control','no-store');res.json(await openCode.status());});
@@ -123,17 +124,36 @@ app.post('/api/messages',async(req,res)=>{
   res.status(answer?200:503).json(answer?{user,response:responseMessage,provider:answer.provider}:{error:'Nie uzyskano odpowiedzi modelu. Wiadomość zapisana lokalnie.',details:error,user});
 });
 // Authenticated real worker callbacks. Profiles alone NEVER imply an online agent.
-let tokens:Record<string,string>={};try{tokens=JSON.parse(process.env.SVL_WORKER_TOKENS||'{}')}catch{}
-const tokensValid=AGENTS.every(a=>typeof tokens[a]==='string'&&tokens[a].length>=32)&&new Set(AGENTS.map(a=>tokens[a])).size===4;
+// Local agents get distinct ephemeral tokens; external workers require explicitly configured secrets.
+function createWorkerTokens():Record<AgentName,string>{
+ const raw=process.env.SVL_WORKER_TOKENS?.trim();
+ if(!raw)return Object.fromEntries(AGENTS.map(a=>[a,randomBytes(32).toString('hex')])) as Record<AgentName,string>;
+ let parsed:unknown;try{parsed=JSON.parse(raw)}catch{throw Error('SVL_WORKER_TOKENS must contain valid JSON')}
+ const candidate=parsed as Record<string,unknown>;
+ if(!candidate||typeof candidate!=='object'||!AGENTS.every(a=>typeof candidate[a]==='string'&&(candidate[a] as string).length>=32)||new Set(AGENTS.map(a=>candidate[a])).size!==4)
+  throw Error('SVL_WORKER_TOKENS must contain four unique strings of at least 32 characters');
+ return candidate as Record<AgentName,string>;
+}
+const tokens=createWorkerTokens();
+const tokensValid=true;
 function workerAuth(req:express.Request,res:express.Response,next:express.NextFunction){
   if(!tokensValid)return sendError(res,'Nie skonfigurowano czterech unikalnych tokenów agentów.',503);
   const provided=(req.header('authorization')||'').replace(/^Bearer /i,'');const entry=AGENTS.find(a=>{const t=tokens[a];return Buffer.byteLength(t)===Buffer.byteLength(provided)&&timingSafeEqual(Buffer.from(t),Buffer.from(provided))});
   if(!entry)return sendError(res,'Nieprawidłowy token workera.',401);
   res.locals.agent=entry;next();
 }
-app.post('/api/worker/heartbeat',workerAuth,(req,res)=>{const agent=res.locals.agent as AgentName;const workerId=typeof req.body?.workerId==='string'?req.body.workerId.slice(0,100):agent;heartbeats.set(agent,{workerId,lastSeen:new Date().toISOString()});publish('workers');res.json({ok:true,agent})});
-app.post('/api/worker/next',workerAuth,(req,res)=>{const agent=res.locals.agent as AgentName;const workerId=typeof req.body?.workerId==='string'?req.body.workerId.slice(0,100):agent;const job=db.jobs.find(j=>j.to===agent&&(j.status==='queued'||j.status==='running'&&j.leaseUntil<Date.now()));if(!job)return res.json({job:null});job.status='running';job.leaseUntil=Date.now()+60000;job.attempts++;job.workerId=workerId;persist();publish('workers');res.json({job})});
-app.post('/api/worker/complete',workerAuth,(req,res)=>{const agent=res.locals.agent as AgentName;const job=db.jobs.find(j=>j.id===req.body?.jobId&&j.to===agent&&j.status==='running'&&j.leaseUntil>Date.now());if(!job||job.workerId!==req.body?.workerId)return sendError(res,'Brak ważnej dzierżawy zadania.',409);const content=String(req.body?.content||'').trim();if(!content||content.length>16000)return sendError(res,'Nieprawidłowa odpowiedź workera.');job.status='done';const m:Message={id:randomUUID(),sessionId:job.sessionId,role:'agent',author:agent,content,createdAt:new Date().toISOString(),status:'delivered',provider:'Worker · '+agent};db.messages.push(m);persist();publish('messages');res.json({ok:true,messageId:m.id})});
+app.post('/api/worker/heartbeat',workerAuth,(req,res)=>{const agent=res.locals.agent as AgentName;const workerId=typeof req.body?.workerId==='string'?req.body.workerId.slice(0,100):agent;heartbeats.set(agent,{workerId,lastSeen:new Date().toISOString(),modelReady:req.body?.modelReady===true,model:typeof req.body?.model==='string'?req.body.model.slice(0,120):null,error:typeof req.body?.error==='string'?req.body.error.slice(0,180):null});publish('workers');res.json({ok:true,agent})});
+app.post('/api/worker/next',workerAuth,(req,res)=>{const agent=res.locals.agent as AgentName;const workerId=typeof req.body?.workerId==='string'?req.body.workerId.slice(0,100):agent;const job=db.jobs.find(j=>j.to===agent&&(j.status==='queued'||j.status==='running'&&j.leaseUntil<Date.now()));if(!job)return res.json({job:null});job.status='running';job.leaseUntil=Date.now()+240000;job.attempts++;job.workerId=workerId;persist();publish('workers');res.json({job})});
+app.post('/api/worker/complete',workerAuth,(req,res)=>{const agent=res.locals.agent as AgentName;const job=db.jobs.find(j=>j.id===req.body?.jobId&&j.to===agent&&j.status==='running'&&j.leaseUntil>Date.now());if(!job||job.workerId!==req.body?.workerId)return sendError(res,'Brak ważnej dzierżawy zadania.',409);const content=String(req.body?.content||'').trim();if(!content||content.length>16000)return sendError(res,'Nieprawidłowa odpowiedź workera.');job.status='done';const m:Message={id:randomUUID(),sessionId:job.sessionId,role:'agent',author:agent,content,createdAt:new Date().toISOString(),status:'delivered',provider:typeof req.body?.provider==='string'&&req.body.provider.startsWith('Ollama · ')?req.body.provider.slice(0,100):'Worker · '+agent};db.messages.push(m);persist();publish('messages');res.json({ok:true,messageId:m.id})});
+app.post('/api/worker/fail',workerAuth,(req,res)=>{
+ const agent=res.locals.agent as AgentName;
+ const job=db.jobs.find(j=>j.id===req.body?.jobId&&j.to===agent&&j.status==='running');
+ if(!job||job.workerId!==req.body?.workerId)return sendError(res,'Brak aktywnego zadania.',409);
+ const reason=typeof req.body?.error==='string'?req.body.error.slice(0,240):'Ollama niedostępna';
+ job.status='failed';job.leaseUntil=0;
+ db.messages.push({id:randomUUID(),sessionId:job.sessionId,role:'system',author:'Diagnostyka · '+agent,content:'Zadanie nie zostało wykonane. '+reason,createdAt:new Date().toISOString(),status:'failed',error:reason});
+ persist();publish('messages');res.json({ok:true,failed:true});
+});
 app.get('/api/system/status',(_req,res)=>res.json({observedAt:new Date().toISOString(),origin:'node-process / app-container',hostname:os.hostname(),platform:process.platform,arch:process.arch,pid:process.pid,uptimeSeconds:Math.floor(process.uptime()),memory:{rssMB:Math.round(process.memoryUsage().rss/1048576),totalMB:Math.round(os.totalmem()/1048576)},hostRootVerified:false,notes:'Wyniki dotyczą procesu Node; nie dowodzą uprawnień root hosta.'}));
 // Operator session: public previews are not automatically trusted. Do not put secrets into frontend JavaScript.
 const operatorSecret=(process.env.SVL_OPERATOR_TOKEN||'').trim();
@@ -159,18 +179,19 @@ app.post('/api/auth/login',(req,res)=>{
 // Real host observer telemetry, pushed by an authenticated daemon. Never infer 'host' from a container.
 type HostSnapshot={hostname:string;os:string;kernel?:string;scope:string;uid?:number;observedAt:string;memoryPercent:number;diskPercent?:number;processCount?:number;services:{name:string;state:string}[];ollama?:{reachable:boolean;models:string[]}};
 let hostData:HostSnapshot|null=null;let hostReceivedAt=0;
-const linuxSecret=(process.env.SVL_LINUX_SYNC_TOKEN||'').trim();
+const linuxSecret=(process.env.SVL_LINUX_SYNC_TOKEN||randomBytes(32).toString('hex')).trim();
+if(linuxSecret.length<32)throw Error('SVL_LINUX_SYNC_TOKEN must be 32+ chars');
 app.post('/api/linux/ingest',(req,res)=>{
   const provided=(req.header('authorization')||'').replace(/^Bearer /i,'');
   if(linuxSecret.length<32||!secureEqual(provided,linuxSecret))return sendError(res,'Brak autoryzacji obserwatora Linux.',401);
   const body=req.body||{};
-  if(typeof body.hostname!=='string'||body.hostname.length>128||body.scope!=='linux-host'||typeof body.os!=='string'||typeof body.memoryPercent!=='number'||!Array.isArray(body.services)||body.services.length>512)return sendError(res,'Niepoprawna próbka Linux.');
-  hostData={hostname:body.hostname,os:body.os.slice(0,150),kernel:String(body.kernel||'').slice(0,150),scope:'linux-host',uid:Number.isInteger(body.uid)?body.uid:undefined,observedAt:String(body.observedAt||'').slice(0,50),memoryPercent:Math.max(0,Math.min(100,body.memoryPercent)),diskPercent:Number(body.diskPercent)||0,processCount:Number(body.processCount)||0,services:body.services.map((item:any)=>({name:String(item.name||'').slice(0,120),state:String(item.state||'').slice(0,32)})),ollama:body.ollama&&typeof body.ollama==='object'?{reachable:body.ollama.reachable===true,models:Array.isArray(body.ollama.models)?body.ollama.models.filter((x:unknown)=>typeof x==='string').slice(0,40):[]}:undefined};
+  if(typeof body.hostname!=='string'||body.hostname.length>128||!['linux-host','app-container'].includes(body.scope)||typeof body.os!=='string'||typeof body.memoryPercent!=='number'||!Array.isArray(body.services)||body.services.length>512)return sendError(res,'Niepoprawna próbka Linux.');
+  hostData={hostname:body.hostname,os:body.os.slice(0,150),kernel:String(body.kernel||'').slice(0,150),scope:body.scope,uid:Number.isInteger(body.uid)?body.uid:undefined,observedAt:String(body.observedAt||'').slice(0,50),memoryPercent:Math.max(0,Math.min(100,body.memoryPercent)),diskPercent:Number(body.diskPercent)||0,processCount:Number(body.processCount)||0,services:body.services.map((item:any)=>({name:String(item.name||'').slice(0,120),state:String(item.state||'').slice(0,32)})),ollama:body.ollama&&typeof body.ollama==='object'?{reachable:body.ollama.reachable===true,models:Array.isArray(body.ollama.models)?body.ollama.models.filter((x:unknown)=>typeof x==='string').slice(0,40):[]}:undefined};
   hostReceivedAt=Date.now();publish('linux');res.json({ok:true,revision:db.revision});
 });
 app.get('/api/linux/status',(_req,res)=>{
   const connected=hostData!==null&&Date.now()-hostReceivedAt<45000;
-  res.json({connected,receivedAt:connected?new Date(hostReceivedAt).toISOString():null,host:connected?hostData:null,note:connected?'Rzeczywisty odczyt z uwierzytelnionego obserwatora Linux':'Brak świeżego odczytu hosta. GUI nie oznacza usług jako ONLINE bez pomiarów.'});
+  res.json({connected,receivedAt:connected?new Date(hostReceivedAt).toISOString():null,host:connected?hostData:null,note:connected?(hostData?.scope==='app-container'?'To jest kontener aplikacji, nie zewnętrzny host Debian':'Rzeczywisty odczyt z uwierzytelnionego obserwatora hosta Linux'):'Brak świeżego odczytu hosta. GUI nie oznacza usług jako ONLINE bez pomiarów.'});
 });
 const PORT=Number(process.env.PORT)||3000;
 if(process.env.NODE_ENV==='production'){
@@ -178,4 +199,15 @@ if(process.env.NODE_ENV==='production'){
 }else{
   const {createServer}=await import('vite');const vite=await createServer({server:{middlewareMode:true},appType:'spa'});app.use(vite.middlewares);
 }
-app.listen(PORT,'0.0.0.0',()=>console.log('Bastilla OS GUI First listening on '+PORT));
+app.listen(PORT,'0.0.0.0',()=>{
+ console.log('Bastilla OS GUI First listening on '+PORT);
+ if(process.env.SVL_START_WORKERS!=='false')for(const agent of AGENTS){
+  const child=fork(path.resolve('scripts/worker.mjs'),[],{env:{...process.env,PORT:String(PORT),AGENT_NAME:agent,WORKER_TOKEN:tokens[agent]}});
+  child.on('error',err=>console.error('[WORKER '+agent+'] '+err.message));
+  child.on('exit',code=>console.error('[WORKER '+agent+'] exit '+code));
+ }
+ if(process.env.SVL_START_CONTAINER_OBSERVER==='true'){
+  const obs=fork(path.resolve('scripts/linux-observer.mjs'),[],{env:{...process.env,PORT:String(PORT),SVL_LINUX_SYNC_TOKEN:linuxSecret}});
+  obs.on('error',err=>console.error('[OBSERVER] '+err.message));
+ }
+});
