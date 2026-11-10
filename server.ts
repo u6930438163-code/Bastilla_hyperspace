@@ -27,6 +27,7 @@ const geminiKey=(process.env.GEMINI_API_KEY||'').trim();
 const geminiModel=(process.env.GEMINI_MODEL||'gemini-2.5-flash').trim();
 const openCode = new OpenCodeBridge({baseUrl:process.env.OPENCODE_BASE_URL, username:process.env.OPENCODE_SERVER_USERNAME, password:process.env.OPENCODE_SERVER_PASSWORD, allowRemote:process.env.OPENCODE_ALLOW_REMOTE==='true'});
 const allowOllamaFallback=process.env.SVL_ALLOW_OLLAMA_FALLBACK!=='false';
+const allowGeminiFallback=process.env.SVL_ALLOW_GEMINI_FALLBACK==='true';
 const heartbeats=new Map<AgentName,{lastSeen:string;workerId:string;modelReady:boolean;model:string|null;error:string|null}>();
 interface Job{id:string;sessionId:string;messageId:string;to:AgentName;content:string;status:'queued'|'running'|'done'|'failed';leaseUntil:number;workerId?:string;attempts:number;}
 interface Db{sessions:Session[];messages:Message[];avatars:Record<string,string>;jobs:Job[];opencodeSessions:Record<string,string>;revision:number;updatedAt:string}
@@ -124,6 +125,7 @@ app.post('/api/messages',async(req,res)=>{
     if(allowOllamaFallback){
       try{answer=await answerWithOllama(content,db.messages.filter(m=>m.sessionId===sessionId));error='';}
       catch(e2){error+='; Ollama: '+redactError(e2)}
+      if(!answer&&allowGeminiFallback){try{answer=await answerWithGemini(content);error='';}catch(e3){error+='; Gemini: '+redactError(e3)}}
     }else{error+='; Fallback Ollama wyłączony (SVL_ALLOW_OLLAMA_FALLBACK=false)'}
   }
   let responseMessage:Message|null=null;
