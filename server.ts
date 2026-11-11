@@ -1104,13 +1104,14 @@ app.get('/api/infrastructure/logs', (req, res) => {
 });
 
 app.post('/api/infrastructure/repair-now', (_req, res) => {
-  const store = saveKernelStore(loadKernelStore());
-  recordInfraLog('Astyria', 'repair', 'Wykonano sprawdzenie spójności magazynu DATA_STORE i sesji.');
+  // Read-only integrity check: never rewrite live DATA_STORE or create a snapshot during diagnostics.
+  const store = loadKernelStore();
+  recordInfraLog('Astyria', 'repair', 'Sprawdzono odczyt i normalizację DATA_STORE bez nadpisywania stanu.');
   res.json({
     success: true,
     repairedAt: new Date().toISOString(),
     sysVersion: store.config.sys_version,
-    message: 'Zweryfikowano strukturę DATA_STORE i zapisano migawkę.',
+    message: 'Sprawdzono odczyt DATA_STORE; nie wykonano przywracania ani zapisu migawki.',
   });
 });
 
