@@ -3,8 +3,8 @@
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 const exec=promisify(execFile);
-export const REPO='mmitek515-netizen/SVL_System';
-const originPattern=/^(?:https:\/\/github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)(mmitek515-netizen\/SVL_System)(?:\.git)?\/?$/i;
+export const REPO='u6930438163-code/Bastilla_hyperspace';
+const originPattern=/^(?:https:\/\/github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)(mmitek515-netizen\/SVL_System|u6930438163-code\/Bastilla_hyperspace)(?:\.git)?\/?$/i;
 export const isAllowedOrigin=value=>originPattern.test(String(value).trim());
 export const safePath=value=>{
  const p=String(value).replace(/\\/g,'/');

@@ -7,5 +7,5 @@ export type AgentState = { name: AgentName; connected: boolean; lastSeen: string
 export type ModelState = { reachable:boolean; model:string|null; models:string[]; error?:string|null; configuredUrl:string; };
 export type OpenCodeState = { configured:boolean;reachable:boolean;openaiConnected:boolean;authMethod:'unverified';defaultOpenAiModel:string|null;provider:'openai';version:string|null;message:string;observedAt:string; };
 export type ServerHealth = { backend: 'online'; opencode:OpenCodeState; observedAt: string; ollama:ModelState; geminiConfigured:boolean; agents:AgentState[]; limitations:string[]; };
-export type Bootstrap = { sessions:Session[]; messages:Message[]; avatars: Record<string,string>; health:ServerHealth; revision?:number; updatedAt?:string; };
+export type Bootstrap = { sessions:Session[]; messages:Message[]; events?:Message[]; avatars: Record<string,string>; health:ServerHealth; revision?:number; updatedAt?:string; };
 export type WidgetBlock = {type:string; title?:string; text?:string; label?:string; value?:number|string|boolean; min?:number; max?:number; options?:any[]; items?:any[]; columns?:string[]; rows?:any[][]; url?:string; prompt?:string; status?:string; data?:any[]; };

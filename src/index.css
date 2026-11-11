@@ -12,3 +12,19 @@
 .host-service{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 10px;font-size:11px;border-bottom:1px solid #243048;overflow-wrap:anywhere}
 .host-service:last-child{border-bottom:0}
 .host-service small{color:#a78bfa;text-align:right;flex-shrink:0}
+
+/* Tab Switcher & Event Log */
+.tab-switcher{display:flex;gap:4px;background:#1a1c2d;padding:4px;border-radius:12px;margin-bottom:15px;border:1px solid #322f46}
+.tab-switcher button{flex:1;border:0;background:none;color:#9b96b3;font-size:11px;padding:9px;border-radius:9px}
+.tab-switcher button.active{background:#3a3059;color:white;box-shadow:0 3px 10px rgba(0,0,0,.2)}
+.event-log{max-height:280px;overflow:auto;display:flex;flex-direction:column;gap:10px}
+.event-entry{font-size:11px;display:flex;flex-direction:column;gap:4px;padding:9px;background:#141525;border-radius:8px;border:1px solid #28273a}
+.event-entry small{color:#766eb1}
+.event-entry strong{color:#c4adff;font-size:10px}
+.diag-list{display:flex;flex-direction:column;gap:8px}
+.diag-item{display:flex;align-items:center;gap:10px;padding:12px;background:#141525;border-radius:10px;border:1px solid #28273a}
+.diag-item strong{flex:1;font-size:12px}
+.diag-item span{font-size:10px;padding:4px 7px;border-radius:6px;font-weight:700}
+.diag-item span.live{background:#1a3225;color:#67e2a4}
+.diag-item span.failure{background:#321c1c;color:#e89a9a}
+.diag-item small{color:#766eb1;font-size:10px}

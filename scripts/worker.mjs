@@ -22,6 +22,13 @@ async function next(){
    const result=await answerAgent(agent,job.content);
    await post('/complete',{workerId,jobId:job.id,content:result.content,provider:'Ollama · '+result.model});
    console.log('[WORKER '+agent+'] complete '+job.id+' using '+result.model);
+   // Self-trigger delegation if the response contains "DELEGATE TO [AgentName]: [content]"
+   const match = result.content.match(/DELEGATE TO (Alex|Aria|Astyria|Aurelius):\s*(.+)/i);
+   if(match) {
+     const target = match[1], content = match[2];
+     console.log('[WORKER '+agent+'] delegating to '+target);
+     try { await post('/delegate', {target, content, sessionId: job.sessionId}); } catch(e) { console.error('Delegation failed: '+e.message); }
+   }
   }catch(e){
    const error=String(e.message).slice(0,250);
    console.error('[WORKER '+agent+'] failed '+job.id+': '+error);

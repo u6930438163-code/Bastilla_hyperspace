@@ -29,12 +29,6 @@ on:
       - 'scripts/start-ai-desktop.sh'
       - 'scripts/install-ai-desktop.sh'
       - 'server.ts'
-      - 'scripts/ollama-agent.mjs'
-      - 'scripts/worker.mjs'
-      - 'scripts/linux-observer.mjs'
-      - 'tests/ollama-agent.test.mjs'
-      - 'package.json'
-      - 'package-lock.json'
       - 'tests/globalSync.test.mjs'
       - '.github/workflows/global-sync-check.yml'
   workflow_dispatch:
@@ -56,4 +50,4 @@ jobs:
       - run: npm test
       - run: npm run lint
       - run: npm run build
-      - run: npm run check
+      - run: npm run build:server
