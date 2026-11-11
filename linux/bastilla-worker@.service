@@ -1,0 +1,24 @@
+[Unit]
+Description=Bastilla OS Ollama agent %i
+After=network-online.target ollama.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bastilla-%i
+Group=bastilla-%i
+WorkingDirectory=/opt/bastilla
+Environment=BASTILLA_AGENT=%i
+EnvironmentFile=/etc/bastilla/workers/%i.env
+ExecStart=/usr/bin/python3 /opt/bastilla/linux/bastilla-ollama-worker.py
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/tmp
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
