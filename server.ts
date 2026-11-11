@@ -416,6 +416,37 @@ async function health(): Promise<ServerHealth> {
 
 app.get('/api/health', async (_req, res) => res.json(await health()));
 
+// Authenticated, evidence-based agent activity: queue and heartbeat are not proof of Git commits.
+app.get('/api/agents/activity', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const now = Date.now();
+  const agents = AGENTS.map((name) => {
+    const h = heartbeats.get(name);
+    const heartbeatAgeMs = h ? now - Date.parse(h.lastSeen) : null;
+    const connected = heartbeatAgeMs !== null && Number.isFinite(heartbeatAgeMs)
+      && heartbeatAgeMs >= 0 && heartbeatAgeMs < 40000;
+    const jobs = db.jobs.filter((job) => job.to === name);
+    return {
+      name,
+      connected,
+      lastSeen: h?.lastSeen ?? null,
+      heartbeatAgeMs,
+      workerId: connected ? h?.workerId ?? null : null,
+      modelReady: connected && Boolean(h?.modelReady),
+      model: connected ? h?.model ?? null : null,
+      jobs: {
+        queued: jobs.filter((job) => job.status === 'queued').length,
+        running: jobs.filter((job) => job.status === 'running').length,
+        done: jobs.filter((job) => job.status === 'done').length,
+        failed: jobs.filter((job) => job.status === 'failed').length,
+      },
+      gitCommitsVerified: false,
+      note: 'Heartbeat i zadania nie potwierdzają autorstwa commitów GitHub.',
+    };
+  });
+  res.json({ success: true, observedAt: new Date().toISOString(), source: 'backend-runtime', agents });
+});
+
 app.get('/api/opencode/status', async (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.json(await openCode.status());
