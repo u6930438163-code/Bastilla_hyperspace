@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { randomUUID, randomBytes, timingSafeEqual } from 'node:crypto';
 import { fork, spawnSync } from 'node:child_process';
+import { GoogleGenAI } from '@google/genai';
 import type { AgentName, AgentState, Bootstrap, Message, ServerHealth, Session } from './src/lib/types';
 import { OpenCodeBridge } from './src/lib/opencodeBridge';
 import { requireGitHubWriteToken } from './src/lib/githubWriteAuth';

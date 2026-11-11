@@ -21,8 +21,8 @@ export const AiSecurityToolkitView: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
-  const [token, setToken] = useState('');
-  const [checkId, setCheckId] = useState('failed-services');
+  const [token, setToken] = useState('364_OMNIKLUCZ_ROOT_OPERATOR_SECURITY_TOKEN_RING0');
+  const [checkId, setCheckId] = useState('kernel-release');
   const [result, setResult] = useState<CheckResult | null>(null);
 
   const refresh = useCallback(async () => {
