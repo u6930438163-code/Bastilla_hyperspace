@@ -30,6 +30,12 @@ export const api = {
   health: () => request<ServerHealth>('/api/health'),
   opencodeStatus: () => request<ServerHealth['opencode']>('/api/opencode/status'),
   ollamaStatus: () => request<any>('/api/ollama/status'),
+  agentsActivity: () => request<{ success: boolean; observedAt: string; agents: {
+    name: AgentName; connected: boolean; lastSeen: string | null;
+    heartbeatAgeMs: number | null; workerId: string | null; modelReady: boolean;
+    model: string | null; jobs: { queued: number; running: number; done: number; failed: number };
+    gitCommitsVerified: boolean; note: string;
+  }[] }>('/api/agents/activity'),
   agentsStatus: () => request<{ success: boolean; observedAt: string; agents: any[] }>('/api/agents/status'),
   sphereStatus: () => request<any>('/api/sphere/status'),
   terminalsStatus: () => request<{ success: boolean; terminals: { id: string; name: string; status: string; details: string }[] }>('/api/terminals/status'),
