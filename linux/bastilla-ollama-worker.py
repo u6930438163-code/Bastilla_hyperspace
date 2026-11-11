@@ -47,7 +47,7 @@ def main():
         try:
             models = request(ollama + "/api/tags", timeout=8).get("models", [])
             names = [x.get("name", "") for x in models if isinstance(x, dict)]
-            model = next((x for x in names if x == preferred or x.startswith(preferred + ":")), None)
+            model = next((x for x in names if x == preferred or x.startswith(preferred + ":") or x.split(":")[0] == preferred.split(":")[0]), None)
             if not model:
                 error = "Configured Ollama model is not installed: " + preferred
         except Exception as exc:
