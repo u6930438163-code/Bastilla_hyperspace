@@ -62,11 +62,9 @@ function authorized(value: string, expected: string): boolean {
   return expected.length >= 32 && lhs.length === rhs.length && timingSafeEqual(lhs, rhs);
 }
 
-const DEFAULT_ROOT_SECURITY_TOKEN = '364_OMNIKLUCZ_ROOT_OPERATOR_SECURITY_TOKEN_RING0';
-
 export function createAiSecurityToolkitRouter(): Router {
   const router = Router();
-  const configured = (process.env.SVL_SECURITY_TOOL_TOKEN || DEFAULT_ROOT_SECURITY_TOKEN).trim();
+  const configured = (process.env.SVL_SECURITY_TOOL_TOKEN || '').trim();
 
   router.get('/status', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
@@ -95,8 +93,7 @@ export function createAiSecurityToolkitRouter(): Router {
       return res.status(503).json({ success: false, error: 'Ustaw SVL_SECURITY_TOOL_TOKEN (min. 32 znaki) po stronie hosta.' });
     }
     const bearer = String(req.headers.authorization || '').match(/^Bearer (.+)$/i)?.[1] || '';
-    const isRootProcess = process.getuid?.() === 0 && (bearer === DEFAULT_ROOT_SECURITY_TOKEN || bearer === '364_OMNIKLUCZ_ROOT');
-    if (!isRootProcess && !authorized(bearer, configured)) {
+    if (!authorized(bearer, configured)) {
       return res.status(401).json({ success: false, error: 'Nieprawidłowe uprawnienia narzędzi diagnostycznych.' });
     }
     const checkId = req.body?.checkId;
