@@ -719,7 +719,7 @@ app.post('/api/messages', async (req, res) => {
 // Worker authentication & queue routes
 function createWorkerTokens(): Record<AgentName, string> {
   const raw = process.env.SVL_WORKER_TOKENS?.trim();
-  if (!raw) return Object.fromEntries(AGENTS.map((a) => [a, randomBytes(32).toString('hex')])) as Record<AgentName, string>;
+  if (!raw) return {} as Record<AgentName, string>;
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -739,7 +739,7 @@ function createWorkerTokens(): Record<AgentName, string> {
 }
 
 const tokens = createWorkerTokens();
-const tokensValid = true;
+const tokensValid = AGENTS.every((agent) => typeof tokens[agent] === 'string' && tokens[agent].length >= 32);
 
 function workerAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
   if (!tokensValid) return sendError(res, 'Nie skonfigurowano czterech unikalnych tokenów agentów.', 503);
