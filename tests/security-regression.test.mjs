@@ -33,3 +33,15 @@ test('production AI authorization does not trust forwarded host headers', async 
   }
   assert.deepEqual(findings, [], 'Remove host-header-based authentication bypass in: ' + findings.join(', '));
 });
+
+test('workers require configured stable credentials', async () => {
+  const source = await readFile(join(process.cwd(), 'server.ts'), 'utf8');
+  assert.match(source, /const tokensValid = AGENTS\.every/);
+  assert.doesNotMatch(source, /if \(!raw\) return Object\.fromEntries\(AGENTS\.map/);
+});
+
+test('agent activity endpoint is available to authenticated operator', async () => {
+  const source = await readFile(join(process.cwd(), 'server.ts'), 'utf8');
+  assert.match(source, /app\.get\('\/api\/agents\/activity'/);
+  assert.doesNotMatch(source, /req\.path\.startsWith\('\/agents\/activity'\)/);
+});
