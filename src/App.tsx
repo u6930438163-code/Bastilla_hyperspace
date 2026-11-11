@@ -83,6 +83,7 @@ function App() {
 
   // Extended live backend states
   const [agentsDetail, setAgentsDetail] = useState<any[]>([]);
+  const [agentsActivity, setAgentsActivity] = useState<Awaited<ReturnType<typeof api.agentsActivity>> | null>(null);
   const [terminalsList, setTerminalsList] = useState<any[]>([]);
   const [quantumReport, setQuantumReport] = useState<any>(null);
   const [hyperCmd, setHyperCmd] = useState('STATUS');
@@ -135,6 +136,8 @@ function App() {
       ]);
       setHostSnapshot(status);
       if (Array.isArray(ag.agents)) setAgentsDetail(ag.agents);
+      const activity = await api.agentsActivity().catch(() => null);
+      setAgentsActivity(activity);
       if (Array.isArray(terms.terminals)) setTerminalsList(terms.terminals);
       if (Array.isArray(apps.apps)) setAppsCatalog(apps.apps);
       if (Array.isArray(mcp.tools)) setMcpCatalog(mcp.tools);
@@ -1019,6 +1022,7 @@ function App() {
                   {AGENTS.map((a) => {
                     const agent = health?.agents.find((x) => x.name === a);
                     const detail = agentsDetail.find((x) => x.name === a);
+                    const activity = agentsActivity?.agents.find((x) => x.name === a);
                     return (
                       <div className="agent-card" key={a}>
                         <InitialAvatar name={a} avatar={snapshot?.avatars?.[a]} size={40} />
@@ -1037,6 +1041,7 @@ function App() {
                             {detail?.queue
                               ? ` · Kolejka: oczekuje ${detail.queue.queued}, w toku ${detail.queue.running}, wykonane ${detail.queue.completed}`
                               : ''}
+                            {activity ? ` · Zadania: ${activity.jobs.queued} oczekuje, ${activity.jobs.running} w toku, ${activity.jobs.done} wykonane, ${activity.jobs.failed} błędne` : ' · Telemetria niedostępna'}
                             {agent?.error ? ' · ' + agent.error : ''}
                           </small>
                         </div>
@@ -1046,7 +1051,7 @@ function App() {
                   })}
                   <div className="detail-card">
                     <p>
-                      Wiadomości do agenta trafiają do kolejki. Agent odpowie dopiero po uwierzytelnionym odebraniu i wykonaniu
+                      Status zadań pochodzi z backendu, a nie z deklaracji modelu. Nie zweryfikowano autorstwa commitów GitHub. Wiadomości do agenta trafiają do kolejki. Agent odpowie dopiero po uwierzytelnionym odebraniu i wykonaniu
                       zadania.
                     </p>
                   </div>
