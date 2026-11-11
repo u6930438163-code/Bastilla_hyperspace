@@ -59,7 +59,7 @@ function scopesFor(value: unknown): MemoryScope[] {
 }
 
 /** Shared avatar registry on the host, outside the Git checkout. */
-const AVATAR_IDS = new Set(['Operator', 'Alex', 'Astyria', 'Aurelius', 'si_1']);
+const AVATAR_IDS = new Set(['Operator', 'Aria', 'Alex', 'Astyria', 'Aurelius', 'si_1']);
 const AVATAR_FILE = path.join(os.homedir(), '.bastillaos', 'avatars.json');
 function readAvatarRegistry(): Record<string, string> {
   try {
